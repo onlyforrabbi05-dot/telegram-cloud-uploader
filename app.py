@@ -225,8 +225,8 @@ def index():
         function updateFileLabel(file) {{
             fileLabel.innerHTML = \`
                 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="accent-text mb-3"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
-                <span class="text-white font-bold text-lg">\${file.name}</span>
-                <span class="text-sm text-gray-400 mt-1">সাইজ: \${(file.size / 1024 / 1024).toFixed(2)} MB - \${file.size > MAX_SIZE_BYTES ? '⚠️ খুব বড়!' : '✅ প্রস্তুত'}</span>
+                <span class="text-white font-bold text-lg">\${{file.name}}</span>
+                <span class="text-sm text-gray-400 mt-1">সাইজ: \${{(file.size / 1024 / 1024).toFixed(2)}} MB - \${{file.size > MAX_SIZE_BYTES ? '⚠️ খুব বড়!' : '✅ প্রস্তুত'}}</span>
             \`;
         }}
 
@@ -271,8 +271,8 @@ def index():
                     const currentWidth = parseInt(progressBar.style.width);
                     if (currentWidth < 90) {{
                         const newWidth = currentWidth + 5;
-                        progressBar.style.width = \`\${newWidth}%\`;
-                        progressPercentage.textContent = \`\${newWidth}%\`;
+                        progressBar.style.width = \`\${{newWidth}}%\`;
+                        progressPercentage.textContent = \`\${{newWidth}}%\`;
                     }} else {{
                         clearInterval(tempProgress);
                     }}
@@ -291,12 +291,12 @@ def index():
                     progressBar.style.width = '100%';
                     progressPercentage.textContent = '100%';
                     statusMessage.textContent = 'আপলোড সফল হয়েছে! ফাইল আইডি পাওয়া গেছে।';
-                    showAlert(\`আপলোড সফল: \${result.message}\`, 'bg-green-900/50 border border-green-500 text-green-300', '🎉');
+                    showAlert(\`আপলোড সফল: \${{result.message}}\`, 'bg-green-900/50 border border-green-500 text-green-300', '🎉');
                 }} else {{
                     progressBar.style.width = '100%';
                     progressPercentage.textContent = '100%';
                     statusMessage.textContent = 'আপলোড ব্যর্থ হয়েছে।';
-                    showAlert(\`আপলোড ব্যর্থ: \${result.message}\`, 'bg-red-900/50 border border-red-500 text-red-300', '❌');
+                    showAlert(\`আপলোড ব্যর্থ: \${{result.message}}\`, 'bg-red-900/50 border border-red-500 text-red-300', '❌');
                 }}
                 
             }} catch (error) {{
@@ -312,8 +312,8 @@ def index():
         }});
         
         function showAlert(message, className, icon) {{
-            alertBox.className = \`mt-6 p-4 rounded-xl \${className}\`;
-            alertText.innerHTML = \`<span class="mr-2">\${icon}</span> \${message}\`;
+            alertBox.className = \`mt-6 p-4 rounded-xl \${{className}}\`;
+            alertText.innerHTML = \`<span class="mr-2">\${{icon}}</span> \${{message}}\`;
             alertBox.classList.remove('hidden');
         }}
 
