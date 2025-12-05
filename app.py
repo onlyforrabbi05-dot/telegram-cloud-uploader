@@ -5,11 +5,12 @@ from flask import Flask, request, jsonify, render_template_string
 
 # --- Global Configuration (Canvas Variables) ---
 try:
-    # নিশ্চিত করুন Render-এ এই নামেই ভেরিয়েবল সেট করা আছে
-    BOT_TOKEN = os.environ['BOT_TOKEN']  
-    CHAT_ID = os.environ['CHAT_ID']
+    # Render Dashboard (Environment Variables) থেকে সিক্রেট ডেটা লোড করা হচ্ছে।
+    BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
+    CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 except KeyError:
-    # সতর্কীকরণ: যদি Render-এ এনভায়রনমেন্ট ভেরিয়েবল সেট না করা না থাকে তবে নিচের ডিফল্ট মানগুলি ব্যবহার হবে।
+    # সতর্কীকরণ: যদি Render-এ এনভায়রনমেন্ট ভেরিয়েবল সেট না করা থাকে তবে নিচের ডিফল্ট মানগুলো ব্যবহার হবে।
+    # ইউজার প্রদত্ত মানগুলি এখানে যুক্ত করা হয়েছে।
     BOT_TOKEN = "8370128447:AAGQ320GgSw0louz69GLe6vAlgrrnLkz8Eg" 
     CHAT_ID = "6361822194"   
 
@@ -19,7 +20,7 @@ USER_ID_PLACEHOLDER = "user-id-if-authenticated"
 app = Flask(__name__)
 
 TELEGRAM_UPLOAD_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-MAX_ALLOWED_SIZE_MB = 2000 
+MAX_ALLOWED_SIZE_MB = 100 
 
 # ত্রুটিমুক্ত এবং পরিষ্কার আপলোড ফাংশন
 def upload_stream_to_telegram(bot_token, chat_id, file_stream, filename, file_size):
