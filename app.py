@@ -20,7 +20,7 @@ USER_ID_PLACEHOLDER = "user-id-if-authenticated"
 app = Flask(__name__)
 
 TELEGRAM_UPLOAD_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-MAX_ALLOWED_SIZE_MB = 100 
+MAX_ALLOWED_SIZE_MB = 2000 
 
 # ত্রুটিমুক্ত এবং পরিষ্কার আপলোড ফাংশন
 def upload_stream_to_telegram(bot_token, chat_id, file_stream, filename, file_size):
