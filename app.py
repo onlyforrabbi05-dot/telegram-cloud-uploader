@@ -5,12 +5,11 @@ from flask import Flask, request, jsonify, render_template_string
 
 # --- Global Configuration (Canvas Variables) ---
 try:
-    # Render Dashboard (Environment Variables) থেকে সিক্রেট ডেটা লোড করা হচ্ছে।
-    BOT_TOKEN = os.environ['8370128447:AAGQ320GgSw0louz69GLe6vAlgrrnLkz8Eg']
-    CHAT_ID = os.environ['6361822194']
+    # নিশ্চিত করুন Render-এ এই নামেই ভেরিয়েবল সেট করা আছে
+    BOT_TOKEN = os.environ['BOT_TOKEN']  
+    CHAT_ID = os.environ['CHAT_ID']
 except KeyError:
-    # সতর্কীকরণ: যদি Render-এ এনভায়রনমেন্ট ভেরিয়েবল সেট না করা থাকে তবে নিচের ডিফল্ট মানগুলো ব্যবহার হবে।
-    # ইউজার প্রদত্ত মানগুলি এখানে যুক্ত করা হয়েছে।
+    # সতর্কীকরণ: যদি Render-এ এনভায়রনমেন্ট ভেরিয়েবল সেট না করা না থাকে তবে নিচের ডিফল্ট মানগুলি ব্যবহার হবে।
     BOT_TOKEN = "8370128447:AAGQ320GgSw0louz69GLe6vAlgrrnLkz8Eg" 
     CHAT_ID = "6361822194"   
 
