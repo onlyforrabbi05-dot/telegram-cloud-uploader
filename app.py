@@ -1,350 +1,196 @@
-import os
+from flask import Flask, request, redirect, url_for, render_template_string
 import requests
-import json
-from flask import Flask, request, jsonify, render_template_string
-
-# --- Global Configuration (Canvas Variables) ---
-try:
-    # Render Dashboard (Environment Variables) থেকে সিক্রেট ডেটা লোড করা হচ্ছে।
-    BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
-    CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-except KeyError:
-    # সতর্কীকরণ: যদি Render-এ এনভায়রনমেন্ট ভেরিয়েবল সেট না করা থাকে তবে নিচের ডিফল্ট মানগুলো ব্যবহার হবে।
-    # ইউজার প্রদত্ত মানগুলি এখানে যুক্ত করা হয়েছে।
-    BOT_TOKEN = "8370128447:AAGQ320GgSw0louz69GLe6vAlgrrnLkz8Eg" 
-    CHAT_ID = "6361822194"   
-
-APP_ID = os.getenv('__app_id', 'default-app-id')
-USER_ID_PLACEHOLDER = "user-id-if-authenticated"
+import os
 
 app = Flask(__name__)
 
-TELEGRAM_UPLOAD_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-MAX_ALLOWED_SIZE_MB = 100 
+# --- কনফিগারেশন (আপনার দেওয়া তথ্য) ---
+BOT_TOKEN = '8370128447:AAGQ320GgSw0louz69GLe6vAlgrrnLkz8Eg' 
+CHAT_ID = '6361822194'
 
-# ত্রুটিমুক্ত এবং পরিষ্কার আপলোড ফাংশন
-def upload_stream_to_telegram(bot_token, chat_id, file_stream, filename, file_size):
-    """ফাইল স্ট্রিমকে টেলিগ্রাম API ব্যবহার করে আপলোড করে"""
-    
-    if file_size > MAX_ALLOWED_SIZE_MB * 1024 * 1024:
-        return jsonify({
-            "success": False, 
-            "message": f"ফাইল সাইজ খুব বড়। অনুমোদিত সর্বোচ্চ সাইজ {MAX_ALLOWED_SIZE_MB} MB। আপনার ফাইলের সাইজ {file_size / (1024 * 1024):.2f} MB।"
-        }), 400
-
-    payload = {
-        'chat_id': chat_id,
-        'caption': f"Uploaded file: {filename}",
+# HTML ফর্ম কোড (আধুনিক ডার্ক UI এবং সেন্টারে টেক্সট সহ)
+HTML_FORM = """
+<!doctype html>
+<title>টেলিগ্রাম ক্লাউড আপলোডার</title>
+<style>
+    /* ডার্ক থিম স্টাইল */
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #1a1a2e; /* Dark Blue-Purple Background */
+        color: #ffffff; /* White Text */
+        text-align: center;
+        padding-top: 50px;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
     }
     
-    files = {
-        'document': (filename, file_stream)
+    /* কন্টেইনার স্টাইল */
+    .container {
+        background-color: #2c2c54; /* Slightly lighter container background */
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        max-width: 500px;
+        width: 90%;
+    }
+    
+    /* হেডিং স্টাইল */
+    h1 {
+        color: #e5f7ff; /* Light Cyan Color for Heading */
+        font-size: 1.8em;
+        margin-bottom: 5px;
+        border-bottom: 2px solid #5d5d81;
+        padding-bottom: 10px;
+    }
+    
+    p {
+        color: #cccccc;
+        margin-top: 10px;
+        margin-bottom: 30px;
+    }
+    
+    /* ফাইল ইনপুট স্টাইল */
+    input[type=file] {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 20px;
+        border: 2px dashed #5d5d81; /* Dashed Border */
+        border-radius: 8px;
+        background-color: #3b3b6b;
+        color: #ffffff;
+        cursor: pointer;
     }
 
-    try:
-        response = requests.post(TELEGRAM_UPLOAD_URL, data=payload, files=files)
-        response_data = response.json()
-        
-        if response.status_code == 200 and response_data.get('ok'):
-            file_id = response_data['result']['document']['file_id']
-            return jsonify({
-                "success": True, 
-                "message": f"'{filename}' ফাইলটি সফলভাবে টেলিগ্রাম ক্লাউডে আপলোড হয়েছে।",
-                "file_id": file_id
-            }), 200
-        else:
-            error_message = response_data.get('description', 'অজানা টেলিগ্রাম API ত্রুটি।')
-            return jsonify({"success": False, "message": f"আপলোড ব্যর্থ হয়েছে: {error_message}"}), 500
-            
-    except requests.exceptions.RequestException as e:
-        return jsonify({"success": False, "message": f"নেটওয়ার্ক বা অনুরোধ ত্রুটি: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "message": f"একটি অপ্রত্যাশিত ত্রুটি ঘটেছে: {str(e)}"}), 500
-
-
-@app.route('/', methods=['GET'])
-def index():
-    # সম্পূর্ণ HTML, CSS (Tailwind) এবং JavaScript এখানে রেন্ডার করা হয়েছে
+    /* সাবমিট বাটন স্টাইল */
+    input[type=submit] {
+        background-color: #4CAF50; /* Green Button */
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1em;
+        width: 100%;
+        transition: background-color 0.3s ease;
+    }
     
-    html_content = f"""
-<!DOCTYPE html>
-<html lang="bn">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Cloud Uploader</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        
-        body {{
-            font-family: 'Inter', sans-serif;
-            background-color: #0c1017; /* Very Dark Blue/Black */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        .card-bg {{
-            background-color: #1a1f26; /* Darker Card Background */
-            border: 1px solid #2d333b;
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
-            animation: fadeIn 0.8s ease-out;
-        }}
-        .accent-color {{
-            background-color: #8b5cf6; /* Vibrant Purple */
-        }}
-        .accent-text {{
-            color: #a78bfa;
-        }}
-        /* Drag and Drop Area Styling */
-        .file-input-wrapper {{
-            cursor: pointer;
-            border: 3px dashed #374151; /* Darker dashed border */
-            transition: border-color 0.3s, background-color 0.3s;
-        }}
-        .file-input-wrapper:hover {{
-            border-color: #8b5cf6;
-            background-color: #1f2a37; /* Slight hover dark */
-        }}
-        .progress-bar {{
-            transition: width 0.4s ease;
-        }}
-        @keyframes fadeIn {{
-            from {{ opacity: 0; transform: translateY(10px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-    </style>
-</head>
-<body class="min-h-screen p-4">
-    <div class="w-full max-w-xl">
-        <div class="card-bg p-8 rounded-2xl shadow-2xl">
-            <h1 class="text-3xl font-extrabold text-white mb-2 text-center">Telegram Uploader</h1>
-            <p class="text-gray-400 mb-8 text-center text-sm">টেলিগ্রাম ক্লাউডে ফাইল আপলোড করুন। (সর্বোচ্চ সাইজ: {MAX_ALLOWED_SIZE_MB} MB)</p>
-            
-            <!-- System Status -->
-            <div class="flex justify-center text-xs text-gray-500 mb-6 border-b border-gray-700 pb-3">
-                <span class="mr-4">App ID: <span class="font-mono text-gray-400">{APP_ID}</span></span>
-                <span>User: <span class="font-mono text-gray-400">{USER_ID_PLACEHOLDER}</span></span>
-            </div>
-
-            <!-- Upload Form -->
-            <form id="uploadForm" class="space-y-6">
-                
-                <!-- File Input Area (Drag & Drop) -->
-                <div class="file-input-wrapper p-10 rounded-xl text-center">
-                    <input type="file" id="fileInput" name="file" class="hidden" required>
-                    <label for="fileInput" id="fileLabel" class="flex flex-col items-center justify-center text-gray-400">
-                        <!-- Upload Icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="accent-text mb-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                        
-                        <span class="text-white font-bold text-lg">ফাইল নির্বাচন করুন বা এখানে টেনে আনুন</span>
-                        <span class="text-sm text-gray-500 mt-1">সর্বোচ্চ {MAX_ALLOWED_SIZE_MB} MB পর্যন্ত সমর্থিত।</span>
-                    </label>
-                </div>
-
-                <!-- Status/Progress Area -->
-                <div id="statusArea" class="hidden">
-                    <p class="text-sm accent-text mb-2 font-semibold flex justify-between">
-                        <span>আপলোড স্ট্যাটাস</span>
-                        <span id="progressPercentage">0%</span>
-                    </p>
-                    <div class="w-full bg-gray-700 rounded-full h-2.5">
-                        <div id="progressBar" class="accent-color h-2.5 rounded-full progress-bar" style="width: 0%"></div>
-                    </div>
-                    <p id="statusMessage" class="mt-2 text-sm text-gray-400"></p>
-                </div>
-
-                <!-- Submit Button -->
-                <button type="submit" id="submitButton" class="w-full accent-color text-white font-bold py-3 rounded-xl hover:bg-violet-700 transition duration-300 shadow-xl shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed">
-                    আপলোড শুরু করুন
-                </button>
-            </form>
-
-            <!-- Success/Error Alert -->
-            <div id="alertBox" class="mt-6 p-4 rounded-xl hidden" role="alert">
-                <p id="alertText" class="font-medium flex items-center"></p>
-            </div>
-            
-        </div>
+    input[type=submit]:hover {
+        background-color: #45a049; /* Darker Green on Hover */
+    }
+    
+    /* মোবাইল রেসপন্সিভনেস */
+    @media (max-width: 600px) {
+        .container {
+            padding: 20px;
+            max-width: 100%;
+            border-radius: 0;
+        }
+    }
+</style>
+<body>
+    <div class="container">
+        <h1>☁️ Backup Your Photos and Files</h1>
+        <p>একসাথে একাধিক ছবি বা ফাইল নির্বাচন করুন। প্রতিটি ফাইল ২ GB এর নিচে হতে হবে।</p>
+        <form method=post enctype=multipart/form-data>
+          <input type=file name=file[] multiple required>
+          <input type=submit value=আপলোড শুরু করুন>
+        </form>
     </div>
-
-    <script>
-        const form = document.getElementById('uploadForm');
-        const fileInput = document.getElementById('fileInput');
-        const fileLabel = document.getElementById('fileLabel');
-        const submitButton = document.getElementById('submitButton');
-        const statusArea = document.getElementById('statusArea');
-        const progressBar = document.getElementById('progressBar');
-        const progressPercentage = document.getElementById('progressPercentage');
-        const statusMessage = document.getElementById('statusMessage');
-        const alertBox = document.getElementById('alertBox');
-        const alertText = document.getElementById('alertText');
-        const fileInputWrapper = document.querySelector('.file-input-wrapper');
-        const MAX_SIZE_BYTES = {MAX_ALLOWED_SIZE_MB} * 1024 * 1024;
-
-        // --- Drag and Drop Logic ---
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {{
-            fileInputWrapper.addEventListener(eventName, preventDefaults, false);
-        }});
-
-        function preventDefaults (e) {{
-            e.preventDefault();
-            e.stopPropagation();
-        }}
-
-        ['dragenter', 'dragover'].forEach(eventName => {{
-            fileInputWrapper.addEventListener(eventName, () => fileInputWrapper.classList.add('border-purple-400', 'bg-violet-900/10'), false);
-        }});
-
-        ['dragleave', 'drop'].forEach(eventName => {{
-            fileInputWrapper.addEventListener(eventName, () => fileInputWrapper.classList.remove('border-purple-400', 'bg-violet-900/10'), false);
-        }});
-
-        fileInputWrapper.addEventListener('drop', handleDrop, false);
-
-        function handleDrop(e) {{
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            if (files.length > 0) {{
-                fileInput.files = files;
-                updateFileLabel(files[0]);
-            }}
-        }}
-
-        // --- File Selection Logic ---
-        fileInput.addEventListener('change', (e) => {{
-            const file = e.target.files[0];
-            if (file) {{
-                updateFileLabel(file);
-            }} else {{
-                resetFileLabel();
-            }}
-        }});
-
-        function updateFileLabel(file) {{
-            fileLabel.innerHTML = \`
-                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="accent-text mb-3"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
-                <span class="text-white font-bold text-lg">\${{file.name}}</span>
-                <span class="text-sm text-gray-400 mt-1">সাইজ: \${{(file.size / 1024 / 1024).toFixed(2)}} MB - \${{file.size > MAX_SIZE_BYTES ? '⚠️ খুব বড়!' : '✅ প্রস্তুত'}}</span>
-            \`;
-        }}
-
-        function resetFileLabel() {{
-            fileLabel.innerHTML = \`
-                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="accent-text mb-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                <span class="text-white font-bold text-lg">ফাইল নির্বাচন করুন বা এখানে টেনে আনুন</span>
-                <span class="text-sm text-gray-500 mt-1">সর্বোচ্চ {MAX_ALLOWED_SIZE_MB} MB পর্যন্ত সমর্থিত।</span>
-            \`;
-        }}
-
-        // --- Form Submission Logic ---
-        form.addEventListener('submit', async (e) => {{
-            e.preventDefault();
-            
-            const file = fileInput.files[0];
-            if (!file) {{
-                showAlert('অনুগ্রহ করে একটি ফাইল নির্বাচন করুন।', 'bg-red-900/50 border border-red-500 text-red-300', '⚠️');
-                return;
-            }}
-
-            if (file.size > MAX_SIZE_BYTES) {{
-                showAlert(\`ফাইলটি {MAX_ALLOWED_SIZE_MB} MB-এর বেশি, আপলোড ব্যর্থ হতে পারে।\`, 'bg-yellow-900/50 border border-yellow-500 text-yellow-300', '⚠️');
-                return;
-            }}
-
-            // UI আপডেট করুন
-            submitButton.disabled = true;
-            submitButton.textContent = 'আপলোড হচ্ছে... সার্ভারে অপেক্ষা করুন';
-            statusArea.classList.remove('hidden');
-            progressBar.style.width = '10%';
-            progressPercentage.textContent = '10%';
-            statusMessage.textContent = 'ফাইল সার্ভারে পাঠানো হচ্ছে... (এটি বড় ফাইলের জন্য সময় নিতে পারে)';
-            alertBox.classList.add('hidden');
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {{
-                // ফেইক প্রোগ্রেস (কারণ সার্ভার থেকে সরাসরি প্রোগ্রেস ডেটা পাওয়া কঠিন)
-                const tempProgress = setInterval(() => {{
-                    const currentWidth = parseInt(progressBar.style.width);
-                    if (currentWidth < 90) {{
-                        const newWidth = currentWidth + 5;
-                        progressBar.style.width = \`\${{newWidth}}%\`;
-                        progressPercentage.textContent = \`\${{newWidth}}%\`;
-                    }} else {{
-                        clearInterval(tempProgress);
-                    }}
-                }}, 1500); 
-
-                const response = await fetch('/upload', {{
-                    method: 'POST',
-                    body: formData,
-                }});
-
-                clearInterval(tempProgress); 
-
-                const result = await response.json();
-                
-                if (response.ok && result.success) {{
-                    progressBar.style.width = '100%';
-                    progressPercentage.textContent = '100%';
-                    statusMessage.textContent = 'আপলোড সফল হয়েছে! ফাইল আইডি পাওয়া গেছে।';
-                    showAlert(\`আপলোড সফল: \${{result.message}}\`, 'bg-green-900/50 border border-green-500 text-green-300', '🎉');
-                }} else {{
-                    progressBar.style.width = '100%';
-                    progressPercentage.textContent = '100%';
-                    statusMessage.textContent = 'আপলোড ব্যর্থ হয়েছে।';
-                    showAlert(\`আপলোড ব্যর্থ: \${{result.message}}\`, 'bg-red-900/50 border border-red-500 text-red-300', '❌');
-                }}
-                
-            }} catch (error) {{
-                console.error('Fetch error:', error);
-                progressBar.style.width = '100%';
-                progressPercentage.textContent = 'ত্রুটি';
-                statusMessage.textContent = 'নেটওয়ার্ক ত্রুটি বা সার্ভার সংযোগ বিচ্ছিন্ন।';
-                showAlert('নেটওয়ার্ক ত্রুটি। বিস্তারিত জানতে কনসোল চেক করুন।', 'bg-red-900/50 border border-red-500 text-red-300', '🚨');
-            }} finally {{
-                submitButton.disabled = false;
-                submitButton.textContent = 'আপলোড শুরু করুন';
-            }}
-        }});
-        
-        function showAlert(message, className, icon) {{
-            alertBox.className = \`mt-6 p-4 rounded-xl \${{className}}\`;
-            alertText.innerHTML = \`<span class="mr-2">\${{icon}}</span> \${{message}}\`;
-            alertBox.classList.remove('hidden');
-        }}
-
-        resetFileLabel();
-    </script>
 </body>
 </html>
-    """
-    return render_template_string(html_content)
+"""
 
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"success": False, "message": "অনুরোধে কোনো ফাইল অংশ পাওয়া যায়নি।"}), 400
-
-    file = request.files['file']
-
-    if file.filename == '':
-        return jsonify({"success": False, "message": "কোনো ফাইল নির্বাচন করা হয়নি।"}), 400
-
-    if file:
-        filename = file.filename
-        file_stream = file.stream
-        # কন্টেন্ট লেন্থ ব্যবহার করা হচ্ছে ফাইল সাইজের জন্য (Render/Gunicorn দ্বারা সরবরাহকৃত)
-        file_size = request.content_length or 0 
-        
-        return upload_stream_to_telegram(BOT_TOKEN, CHAT_ID, file_stream, filename, file_size)
+def upload_to_telegram(file_stream, filename, file_type='document'):
+    """ফাইল স্ট্রিমকে টেলিগ্রাম API ব্যবহার করে আপলোড করে"""
     
-    return jsonify({"success": False, "message": "ফাইল প্রসেসিং এর সময় অজানা ত্রুটি।"}), 500
+    if file_type == 'photo':
+        api_method = 'sendPhoto'
+        file_key = 'photo'
+    elif file_type == 'video':
+        api_method = 'sendVideo'
+        file_key = 'video'
+    else:
+        api_method = 'sendDocument'
+        file_key = 'document'
+        
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{api_method}"
+    
+    files = {file_key: (filename, file_stream)}
+    data = {'chat_id': CHAT_ID, 'caption': f"Uploaded via Web: {filename}"}
+    
+    response = requests.post(url, data=data, files=files)
+    
+    return response.status_code == 200, response.json()
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+@app.route('/', methods=['GET', 'POST'])
+def upload_file():
+    if request.method == 'POST':
+        uploaded_files = request.files.getlist('file[]') 
+        
+        if not uploaded_files or uploaded_files[0].filename == '':
+            return 'কোনো ফাইল পাওয়া যায়নি', 400
+        
+        successful_uploads = 0
+        
+        for file in uploaded_files:
+            if file.filename:
+                filename = file.filename
+                file_extension = os.path.splitext(filename)[1].lower()
+                
+                file_type = 'document'
+                if file_extension in ['.jpg', '.jpeg', '.png', '.gif']:
+                    file_type = 'photo'
+                elif file_extension in ['.mp4', '.mov', '.avi']:
+                    file_type = 'video'
+                
+                success, response_data = upload_to_telegram(file.stream, filename, file_type)
+
+                if success:
+                    successful_uploads += 1
+                else:
+                    print(f"Failed to upload {filename}: {response_data}")
+        
+        if successful_uploads > 0:
+            return redirect(url_for('upload_success_multi', count=successful_uploads))
+        else:
+            return 'কোনো ফাইলই সফলভাবে আপলোড হয়নি।', 500
+
+    return render_template_string(HTML_FORM)
+
+# সফলতা পেজ (কটি ফাইল আপলোড হলো তা দেখায়)
+@app.route('/success')
+def upload_success_multi():
+    count = request.args.get('count', 'কিছু')
+    return f"""
+    <style>
+        body {{
+            font-family: 'Arial', sans-serif;
+            background-color: #1a1a2e;
+            color: #ffffff;
+            text-align: center;
+            padding-top: 100px;
+        }}
+        h1 {{
+            color: #4CAF50;
+        }}
+        a {{
+            color: #79d0f7;
+            text-decoration: none;
+            padding: 10px 15px;
+            border: 1px solid #79d0f7;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: inline-block;
+        }}
+        a:hover {{
+            background-color: #79d0f7;
+            color: #1a1a2e;
+        }}
+    </style>
+    <h1>✅ সফলভাবে {count}টি ফাইল টেলিগ্রামে আপলোড হয়েছে!</h1>
+    <p><a href="/">অন্য ফাইল আপলোড করুন</a></p>
+    """
